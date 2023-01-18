@@ -19,10 +19,10 @@
 <configuration>
 
     <appender name="system" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${user.home}/logs/simple/system.log</file>
+        <file>/Users/yiche/Code/JAVA/yzhou/rocketmq/logs/simple/system.log</file>
         <append>true</append>
         <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
-            <fileNamePattern>${user.home}/logs/simple/system.%i.log
+            <fileNamePattern>/Users/yiche/Code/JAVA/yzhou/rocketmq/logs/simple/system.%i.log
             </fileNamePattern>
             <minIndex>1</minIndex>
             <maxIndex>30</maxIndex>
@@ -45,9 +45,9 @@
     </appender>
 
     <appender name="dailyAppender" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${user.home}/logs/simple/daily.log</file>
+        <file>/Users/yiche/Code/JAVA/yzhou/rocketmq/logs/simple/daily.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>${user.home}/logs/simple/daily.log.%d{yyyy-MM-dd_HH}</fileNamePattern>
+            <fileNamePattern>/Users/yiche/Code/JAVA/yzhou/rocketmq/logs/simple/daily.log.%d{yyyy-MM-dd_HH}</fileNamePattern>
             <maxHistory>30</maxHistory>
         </rollingPolicy>
         <encoder>
