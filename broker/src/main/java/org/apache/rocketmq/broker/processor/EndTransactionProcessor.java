@@ -49,12 +49,13 @@ public class EndTransactionProcessor extends AsyncNettyRequestProcessor {
         this.brokerController = brokerController;
     }
 
+    // yzhou 处理事务消息的commit 和 rollback
     @Override
     public RemotingCommand processRequest(ChannelHandlerContext ctx, RemotingCommand request) throws
-        RemotingCommandException {
+            RemotingCommandException {
         final RemotingCommand response = RemotingCommand.createResponseCommand(null);
         final EndTransactionRequestHeader requestHeader =
-            (EndTransactionRequestHeader) request.decodeCommandCustomHeader(EndTransactionRequestHeader.class);
+                (EndTransactionRequestHeader) request.decodeCommandCustomHeader(EndTransactionRequestHeader.class);
         LOGGER.debug("Transaction request:{}", requestHeader);
         if (BrokerRole.SLAVE == brokerController.getMessageStoreConfig().getBrokerRole()) {
             response.setCode(ResponseCode.SLAVE_NOT_AVAILABLE);
@@ -66,29 +67,29 @@ public class EndTransactionProcessor extends AsyncNettyRequestProcessor {
             switch (requestHeader.getCommitOrRollback()) {
                 case MessageSysFlag.TRANSACTION_NOT_TYPE: {
                     LOGGER.warn("Check producer[{}] transaction state, but it's pending status."
-                            + "RequestHeader: {} Remark: {}",
-                        RemotingHelper.parseChannelRemoteAddr(ctx.channel()),
-                        requestHeader.toString(),
-                        request.getRemark());
+                                    + "RequestHeader: {} Remark: {}",
+                            RemotingHelper.parseChannelRemoteAddr(ctx.channel()),
+                            requestHeader.toString(),
+                            request.getRemark());
                     return null;
                 }
 
                 case MessageSysFlag.TRANSACTION_COMMIT_TYPE: {
                     LOGGER.warn("Check producer[{}] transaction state, the producer commit the message."
-                            + "RequestHeader: {} Remark: {}",
-                        RemotingHelper.parseChannelRemoteAddr(ctx.channel()),
-                        requestHeader.toString(),
-                        request.getRemark());
+                                    + "RequestHeader: {} Remark: {}",
+                            RemotingHelper.parseChannelRemoteAddr(ctx.channel()),
+                            requestHeader.toString(),
+                            request.getRemark());
 
                     break;
                 }
 
                 case MessageSysFlag.TRANSACTION_ROLLBACK_TYPE: {
                     LOGGER.warn("Check producer[{}] transaction state, the producer rollback the message."
-                            + "RequestHeader: {} Remark: {}",
-                        RemotingHelper.parseChannelRemoteAddr(ctx.channel()),
-                        requestHeader.toString(),
-                        request.getRemark());
+                                    + "RequestHeader: {} Remark: {}",
+                            RemotingHelper.parseChannelRemoteAddr(ctx.channel()),
+                            requestHeader.toString(),
+                            request.getRemark());
                     break;
                 }
                 default:
@@ -98,10 +99,10 @@ public class EndTransactionProcessor extends AsyncNettyRequestProcessor {
             switch (requestHeader.getCommitOrRollback()) {
                 case MessageSysFlag.TRANSACTION_NOT_TYPE: {
                     LOGGER.warn("The producer[{}] end transaction in sending message,  and it's pending status."
-                            + "RequestHeader: {} Remark: {}",
-                        RemotingHelper.parseChannelRemoteAddr(ctx.channel()),
-                        requestHeader.toString(),
-                        request.getRemark());
+                                    + "RequestHeader: {} Remark: {}",
+                            RemotingHelper.parseChannelRemoteAddr(ctx.channel()),
+                            requestHeader.toString(),
+                            request.getRemark());
                     return null;
                 }
 
@@ -111,10 +112,10 @@ public class EndTransactionProcessor extends AsyncNettyRequestProcessor {
 
                 case MessageSysFlag.TRANSACTION_ROLLBACK_TYPE: {
                     LOGGER.warn("The producer[{}] end transaction in sending message, rollback the message."
-                            + "RequestHeader: {} Remark: {}",
-                        RemotingHelper.parseChannelRemoteAddr(ctx.channel()),
-                        requestHeader.toString(),
-                        request.getRemark());
+                                    + "RequestHeader: {} Remark: {}",
+                            RemotingHelper.parseChannelRemoteAddr(ctx.channel()),
+                            requestHeader.toString(),
+                            request.getRemark());
                     break;
                 }
                 default:
@@ -122,19 +123,26 @@ public class EndTransactionProcessor extends AsyncNettyRequestProcessor {
             }
         }
         OperationResult result = new OperationResult();
+        // yzhou 该请求是“提交事务”请求
         if (MessageSysFlag.TRANSACTION_COMMIT_TYPE == requestHeader.getCommitOrRollback()) {
+            // yzhou 根据requestHeader(EndTransactionRequestHeader)的commitLogOffset从commitlog文件中查找消息
             result = this.brokerController.getTransactionalMessageService().commitMessage(requestHeader);
             if (result.getResponseCode() == ResponseCode.SUCCESS) {
+                // yzhou 检查消息与请求参数是否一致，例如commitlogoffset
                 RemotingCommand res = checkPrepareMessage(result.getPrepareMessage(), requestHeader);
                 if (res.getCode() == ResponseCode.SUCCESS) {
+                    // yzhou 根据消息真实的Topic和QueueId重新包装成新的事务消息
                     MessageExtBrokerInner msgInner = endMessageTransaction(result.getPrepareMessage());
                     msgInner.setSysFlag(MessageSysFlag.resetTransactionValue(msgInner.getSysFlag(), requestHeader.getCommitOrRollback()));
                     msgInner.setQueueOffset(requestHeader.getTranStateTableOffset());
                     msgInner.setPreparedTransactionOffset(requestHeader.getCommitLogOffset());
                     msgInner.setStoreTimestamp(result.getPrepareMessage().getStoreTimestamp());
                     MessageAccessor.clearProperty(msgInner, MessageConst.PROPERTY_TRANSACTION_PREPARED);
+                    // yzhou 发送消息&存储，这样就会被下游Consumer消费到
                     RemotingCommand sendResult = sendFinalMessage(msgInner);
                     if (sendResult.getCode() == ResponseCode.SUCCESS) {
+                        // yzhou 删除prepare消息
+                        // yzhou 将之前存储在RMQ_SYS_TRANS_OP_HALF_TOPIC消息删除
                         this.brokerController.getTransactionalMessageService().deletePrepareMessage(result.getPrepareMessage());
                     }
                     return sendResult;
@@ -142,10 +150,13 @@ public class EndTransactionProcessor extends AsyncNettyRequestProcessor {
                 return res;
             }
         } else if (MessageSysFlag.TRANSACTION_ROLLBACK_TYPE == requestHeader.getCommitOrRollback()) {
+            // yzhou 根据requestHeader(EndTransactionRequestHeader)的commitLogOffset从commitlog文件中查找消息
             result = this.brokerController.getTransactionalMessageService().rollbackMessage(requestHeader);
             if (result.getResponseCode() == ResponseCode.SUCCESS) {
+                // yzhou 检查消息与请求参数是否一致，例如commitlogoffset
                 RemotingCommand res = checkPrepareMessage(result.getPrepareMessage(), requestHeader);
                 if (res.getCode() == ResponseCode.SUCCESS) {
+                    // yzhou 将之前存储在RMQ_SYS_TRANS_OP_HALF_TOPIC消息删除
                     this.brokerController.getTransactionalMessageService().deletePrepareMessage(result.getPrepareMessage());
                 }
                 return res;
@@ -205,8 +216,8 @@ public class EndTransactionProcessor extends AsyncNettyRequestProcessor {
         msgInner.setTransactionId(msgExt.getUserProperty(MessageConst.PROPERTY_UNIQ_CLIENT_MESSAGE_ID_KEYIDX));
         msgInner.setSysFlag(msgExt.getSysFlag());
         TopicFilterType topicFilterType =
-            (msgInner.getSysFlag() & MessageSysFlag.MULTI_TAGS_FLAG) == MessageSysFlag.MULTI_TAGS_FLAG ? TopicFilterType.MULTI_TAG
-                : TopicFilterType.SINGLE_TAG;
+                (msgInner.getSysFlag() & MessageSysFlag.MULTI_TAGS_FLAG) == MessageSysFlag.MULTI_TAGS_FLAG ? TopicFilterType.MULTI_TAG
+                        : TopicFilterType.SINGLE_TAG;
         long tagsCodeValue = MessageExtBrokerInner.tagsString2tagsCode(topicFilterType, msgInner.getTags());
         msgInner.setTagsCode(tagsCodeValue);
         MessageAccessor.setProperties(msgInner, msgExt.getProperties());
@@ -238,7 +249,7 @@ public class EndTransactionProcessor extends AsyncNettyRequestProcessor {
                 case PROPERTIES_SIZE_EXCEEDED:
                     response.setCode(ResponseCode.MESSAGE_ILLEGAL);
                     response.setRemark(String.format("The message is illegal, maybe msg body or properties length not matched. msg body length limit %dB, msg properties length limit 32KB.",
-                        this.brokerController.getMessageStoreConfig().getMaxMessageSize()));
+                            this.brokerController.getMessageStoreConfig().getMaxMessageSize()));
                     break;
                 case SERVICE_NOT_AVAILABLE:
                     response.setCode(ResponseCode.SERVICE_NOT_AVAILABLE);

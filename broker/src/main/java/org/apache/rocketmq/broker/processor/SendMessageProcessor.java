@@ -312,6 +312,7 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor {
         }
 
         CompletableFuture<PutMessageResult> putMessageResult = null;
+        // yzhou 获取事务消息的特有的属性值，等于 true表示是事务消息
         String transFlag = origProps.get(MessageConst.PROPERTY_TRANSACTION_PREPARED);
         if (Boolean.parseBoolean(transFlag)) {
             if (this.brokerController.getBrokerConfig().isRejectTransactionMessage()) {
