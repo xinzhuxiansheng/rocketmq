@@ -35,6 +35,10 @@
             <includes>
                 <include>conf/**</include>
                 <include>benchmark/*</include>
+                <include>dos2unix.sh</include>
+                <include>namesrv.conf</include>
+                <include>controller.conf</include>
+                <include>broker.conf</include>
             </includes>
         </fileSet>
 
