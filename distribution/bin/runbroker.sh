@@ -100,7 +100,7 @@ choose_gc_options()
 
 choose_gc_log_directory
 
-JAVA_OPT="${JAVA_OPT} -server -Xms8g -Xmx8g"
+JAVA_OPT="${JAVA_OPT} -server -Xms512m -Xmx512m"
 choose_gc_options
 JAVA_OPT="${JAVA_OPT} -XX:-OmitStackTraceInFastThrow"
 JAVA_OPT="${JAVA_OPT} -XX:+AlwaysPreTouch"
